@@ -11,20 +11,20 @@ namespace Yamato
 {
     public class MirageModule : ItemModule
     {
-        public float DashSpeed;
-        public string DashDirection;
-        public bool DisableGravity;
-        public bool DisableCollision;
-        public float DashTime;
-        public float BeamCooldown;
-        public float SwordSpeed;
-        public float RotateDegreesPerSecond;
-        public float ReturnSpeed;
-        public bool StopOnEnd;
-        public bool StopOnStart;
-        public bool ThumbstickDash;
-        public bool SwapButtons;
-        public bool ToggleSwordBeams;
+        public float DashSpeed = 1000;
+        public string DashDirection = "Item";
+        public bool DisableGravity = true;
+        public bool DisableCollision = false;
+        public float DashTime = 0.5f;
+        public float BeamCooldown = 0.15f;
+        public float SwordSpeed = 7;
+        public float RotateDegreesPerSecond = 2160;
+        public float ReturnSpeed = 10;
+        public bool StopOnEnd = false;
+        public bool StopOnStart = false;
+        public bool ThumbstickDash = true;
+        public bool SwapButtons = false;
+        public bool ToggleSwordBeams = false;
         public override void OnItemLoaded(Item item)
         {
             base.OnItemLoaded(item);
@@ -249,7 +249,12 @@ namespace Yamato
             else
             {
                 cdH = Time.time;
-                Catalog.GetData<ItemData>("YamatoBeam").SpawnAsync(null, item.flyDirRef.position, Quaternion.LookRotation(item.flyDirRef.forward, item.rb.velocity));
+                Catalog.GetData<ItemData>("YamatoBeam").SpawnAsync(beam =>
+                {
+                    beam.GetComponent<BeamCustomization>().yamato = item;
+                    if (item.colliderGroups[0].imbue is Imbue imbue && imbue.spellCastBase != null && imbue.energy > 0)
+                        beam.colliderGroups[0].imbue.Transfer(imbue.spellCastBase, beam.colliderGroups[0].imbue.maxEnergy);
+                }, item.flyDirRef.position, Quaternion.LookRotation(item.flyDirRef.forward, item.rb.velocity));
             }
         }
     }

@@ -17,8 +17,5 @@ namespace Yamato
             item.gameObject.AddComponent<YamatoSheathFrameworkComponent>();
         }
     }
-    public class YamatoSheathFrameworkComponent : MonoBehaviour
-    {
-
-    }
+    public class YamatoSheathFrameworkComponent : MonoBehaviour { }
 }

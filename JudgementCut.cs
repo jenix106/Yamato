@@ -12,8 +12,11 @@ namespace Yamato
     public class JudgementCutPosition : MonoBehaviour
     {
         public Vector3 position = new Vector3();
+        public Item yamato;
         float time = 0;
         bool spawning = false;
+        public float damage;
+        public bool dismember;
         public void Update()
         {
             time += Time.deltaTime;
@@ -25,17 +28,24 @@ namespace Yamato
         }
         public void ShootJudgementCut(Item spawnedItem)
         {
-            spawnedItem.gameObject.AddComponent<JudgementCutHit>();
+            JudgementCutHit hit = spawnedItem.gameObject.AddComponent<JudgementCutHit>();
+            hit.yamato = yamato;
+            hit.damage = damage;
+            hit.dismember = dismember;
             Destroy(gameObject);
         }
     }
     public class JudgementCutHit : MonoBehaviour
     {
         Item item;
+        public Item yamato;
+        Imbue imbue;
+        public float damage;
+        public bool dismember;
         public void Start()
         {
             item = GetComponent<Item>();
-            item.rb.isKinematic = true;
+            imbue = yamato.colliderGroups[0].imbue;
             Item.allThrowed.Add(item);
             StartCoroutine(AnimeSlice());
             GameObject effect = new GameObject();
@@ -54,25 +64,34 @@ namespace Yamato
             yield return null;
             foreach (Collider collider in Physics.OverlapSphere(item.transform.position, 1.5f))
             {
-                if (collider.GetComponentInParent<RagdollPart>() != null && collider.GetComponentInParent<RagdollPart>().ragdoll.creature != Player.local.creature && collider.GetComponentInParent<RagdollPart>()?.ragdoll?.creature?.gameObject?.activeSelf == true && !collider.GetComponentInParent<RagdollPart>().isSliced)
+                if (collider.GetComponentInParent<RagdollPart>() is RagdollPart part && part.ragdoll.creature != Player.local.creature && part?.ragdoll?.creature?.gameObject?.activeSelf == true && !part.isSliced)
                 {
-                    RagdollPart part = collider.GetComponentInParent<RagdollPart>();
-                    if (part.sliceAllowed)
+                    part.gameObject.SetActive(true);
+                    CollisionInstance instance = new CollisionInstance(new DamageStruct(DamageType.Slash, damage))
                     {
-                        CollisionInstance instance = new CollisionInstance(new DamageStruct(DamageType.Slash, 20f));
-                        instance.damageStruct.hitRagdollPart = part;
-                        part.ragdoll.creature.Damage(instance);
+                        targetCollider = part.colliderGroup.colliders[0],
+                        targetColliderGroup = part.colliderGroup,
+                        sourceCollider = yamato.colliderGroups[0].colliders[0],
+                        sourceColliderGroup = yamato.colliderGroups[0],
+                        casterHand = yamato.lastHandler.caster,
+                        impactVelocity = yamato.rb.velocity,
+                        contactPoint = part.transform.position,
+                        contactNormal = -yamato.rb.velocity
+                    };
+                    instance.damageStruct.hitRagdollPart = part;
+                    if (imbue.energy > 0)
+                    {
+                        imbue.spellCastBase.OnImbueCollisionStart(instance);
+                        yield return null;
+                    }
+                    if (part.sliceAllowed && dismember)
+                    {
                         part.ragdoll.TrySlice(part);
                         if (part.data.sliceForceKill)
                             part.ragdoll.creature.Kill();
                         yield return null;
                     }
-                    else if (!part.ragdoll.creature.isKilled)
-                    {
-                        CollisionInstance instance = new CollisionInstance(new DamageStruct(DamageType.Slash, 20f));
-                        instance.damageStruct.hitRagdollPart = part;
-                        part.ragdoll.creature.Damage(instance);
-                    }
+                    part.ragdoll.creature.Damage(instance);
                 }
                 if (collider.attachedRigidbody && !collider.attachedRigidbody.isKinematic)
                 {
@@ -81,7 +100,17 @@ namespace Yamato
                         RagdollPart component = collider.attachedRigidbody.gameObject.GetComponent<RagdollPart>();
                         if (component && !creaturesPushed.Contains(component.ragdoll.creature))
                         {
-                            component.ragdoll.creature.TryPush(Creature.PushType.Magic, (component.ragdoll.rootPart.transform.position - item.transform.position).normalized, 1);
+                            if (component.ragdoll.creature.locomotion.isGrounded)
+                                component.ragdoll.creature.TryPush(Creature.PushType.Magic, (component.ragdoll.rootPart.transform.position - item.transform.position).normalized, 1);
+                            else
+                            {
+                                component.ragdoll.creature.locomotion.rb.velocity = Vector3.zero;
+                                foreach(RagdollPart ragdollPart in component.ragdoll.parts)
+                                {
+                                    ragdollPart.rb.velocity = Vector3.zero;
+                                }
+                                component.ragdoll.creature.locomotion.rb.AddForce(Vector3.up * 2, ForceMode.Impulse);
+                            }
                             creaturesPushed.Add(component.ragdoll.creature);
                         }
                     }

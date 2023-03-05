@@ -11,19 +11,24 @@ namespace Yamato
 {
     public class SheathModule : ItemModule
     {
-        public float DashSpeed;
-        public string DashDirection;
-        public bool DisableGravity;
-        public bool DisableCollision;
-        public float DashTime;
-        public bool StopOnEnd;
-        public bool StopOnStart;
-        public bool ThumbstickDash;
-        public bool SwapButtons;
+        public float DashSpeed = 1000;
+        public string DashDirection = "Player";
+        public bool DisableGravity = true;
+        public bool DisableCollision = true;
+        public float DashTime = 0.5f;
+        public bool StopOnEnd = false;
+        public bool StopOnStart = false;
+        public bool ThumbstickDash = true;
+        public bool SwapButtons = false;
+        public int MultiDaggerCount = 8;
+        public float MultiDaggerInterval = 0.07f;
+        public bool DashRealTime = false;
+        public ForceMode DashForceMode = ForceMode.Impulse;
+        public bool DaggerDismemberment = true;
         public override void OnItemLoaded(Item item)
         {
             base.OnItemLoaded(item);
-            item.gameObject.AddComponent<SheathComponent>().Setup(DashSpeed, DashDirection, DisableGravity, DisableCollision, DashTime, StopOnEnd, StopOnStart, ThumbstickDash, SwapButtons);
+            item.gameObject.AddComponent<SheathComponent>().Setup(DashSpeed, DashDirection, DisableGravity, DisableCollision, DashTime, StopOnEnd, StopOnStart, ThumbstickDash, SwapButtons, MultiDaggerCount, MultiDaggerInterval, DashRealTime, DashForceMode, DaggerDismemberment);
         }
     }
     public class SheathComponent : MonoBehaviour
@@ -36,19 +41,29 @@ namespace Yamato
         public float DashTime;
         public bool StopOnEnd;
         public bool StopOnStart;
+        public int MultiDaggerCount;
+        public float MultiDaggerInterval;
+        public bool DashRealTime;
         bool ThumbstickDash;
         bool SwapButtons;
         bool holding = false;
         bool firing = false;
         float cdH;
         GameObject handleColliders;
+        bool right = false;
+        bool up = false;
+        public ForceMode DashForceMode;
+        public bool DaggerDismemberment;
         public void Start()
         {
             item = GetComponent<Item>();
             item.OnHeldActionEvent += Item_OnHeldActionEvent;
             handleColliders = item.GetCustomReference("HandleColliders").gameObject;
-            item.GetComponentInChildren<Holder>().Snapped += SheathComponent_Snapped;
-            item.GetComponentInChildren<Holder>().UnSnapped += SheathComponent_UnSnapped;
+            if (item.GetComponent<YamatoSheathFrameworkComponent>() == null)
+            {
+                item.GetComponentInChildren<Holder>().Snapped += SheathComponent_Snapped;
+                item.GetComponentInChildren<Holder>().UnSnapped += SheathComponent_UnSnapped;
+            }
             item.data.category = "Utilities";
         }
 
@@ -83,14 +98,15 @@ namespace Yamato
             }
             if ((!SwapButtons && action == Interactable.Action.UseStart) || (SwapButtons && action == Interactable.Action.AlternateUseStart))
             {
-                Vector3 v;
-                v.x = UnityEngine.Random.Range(-0.15f, 0.15f);
-                v.y = UnityEngine.Random.Range(-0.15f, 0.15f);
-                v.z = UnityEngine.Random.Range(-0.15f, 0.15f);
-                Catalog.GetData<ItemData>("MirageBlade").SpawnAsync(ShootDagger, new Vector3(Player.local.head.cam.transform.position.x + v.x, Player.local.head.cam.transform.position.y + v.y, Player.local.head.cam.transform.position.z + v.z),
+                right = !right;
+                if (!right) up = !up;
+                Catalog.GetData<ItemData>("MirageBlade").SpawnAsync(ShootDagger,
+                    Player.local.head.cam.transform.position + ((right ? Player.local.head.cam.transform.right : -Player.local.head.cam.transform.right) * 0.4f) +
+                    (up ? Player.local.head.cam.transform.up * 0.25f : Vector3.zero),
                     Player.local.head.cam.transform.rotation);
                 GameObject effect = new GameObject();
-                effect.transform.position = new Vector3(Player.local.head.cam.transform.position.x + v.x, Player.local.head.cam.transform.position.y + v.y, Player.local.head.cam.transform.position.z + v.z);
+                effect.transform.position = Player.local.head.cam.transform.position + (right ? Player.local.head.cam.transform.right : -Player.local.head.cam.transform.right) +
+                    (up ? Player.local.head.cam.transform.up * 0.5f : Vector3.zero);
                 effect.transform.rotation = Quaternion.identity;
                 EffectInstance instance = Catalog.GetData<EffectData>("MirageBladeSpawn").Spawn(effect.transform, false);
                 instance.SetIntensity(1);
@@ -110,15 +126,15 @@ namespace Yamato
             if (Player.local.locomotion.moveDirection.magnitude <= 0 || !ThumbstickDash)
                 if (DashDirection == "Item")
                 {
-                    Player.local.locomotion.rb.AddForce(item.mainHandler.grip.up * DashSpeed, ForceMode.Impulse);
+                    Player.local.locomotion.rb.AddForce(item.mainHandler.grip.up * (!DashRealTime? DashSpeed : DashSpeed / Time.timeScale), DashForceMode);
                 }
                 else
                 {
-                    Player.local.locomotion.rb.AddForce(Player.local.head.transform.forward * DashSpeed, ForceMode.Impulse);
+                    Player.local.locomotion.rb.AddForce(Player.local.head.transform.forward * (!DashRealTime ? DashSpeed : DashSpeed / Time.timeScale), DashForceMode);
                 }
             else
             {
-                Player.local.locomotion.rb.AddForce(Player.local.locomotion.moveDirection.normalized * DashSpeed, ForceMode.Impulse);
+                Player.local.locomotion.rb.AddForce(Player.local.locomotion.moveDirection.normalized * (!DashRealTime ? DashSpeed : DashSpeed / Time.timeScale), DashForceMode);
             }
             if (DisableGravity)
                 Player.local.locomotion.rb.useGravity = false;
@@ -129,7 +145,8 @@ namespace Yamato
                 item.mainHandler.rb.detectCollisions = false;
                 item.mainHandler.otherHand.rb.detectCollisions = false;
             }
-            yield return new WaitForSeconds(DashTime);
+            if (DashRealTime) yield return new WaitForSecondsRealtime(DashTime);
+            else yield return new WaitForSeconds(DashTime);
             if (DisableGravity)
                 Player.local.locomotion.rb.useGravity = true;
             if (DisableCollision)
@@ -151,15 +168,15 @@ namespace Yamato
             instance.SetIntensity(1);
             instance.Play();
             Destroy(effect, 2);
-            for (int i = 0; i < 8; i++)
+            for (int i = 0; i < MultiDaggerCount; i++)
             {
-                Vector3 v;
-                v.x = UnityEngine.Random.Range(-0.15f, 0.15f);
-                v.y = UnityEngine.Random.Range(-0.15f, 0.15f);
-                v.z = UnityEngine.Random.Range(-0.15f, 0.15f);
-                Catalog.GetData<ItemData>("MirageBlade").SpawnAsync(ShootDagger, new Vector3(Player.local.head.cam.transform.position.x + v.x, Player.local.head.cam.transform.position.y + v.y, Player.local.head.cam.transform.position.z + v.z),
+                right = !right;
+                if(!right) up = !up;
+                Catalog.GetData<ItemData>("MirageBlade").SpawnAsync(ShootDagger,
+                    Player.local.head.cam.transform.position + ((right ? Player.local.head.cam.transform.right : -Player.local.head.cam.transform.right) * 0.4f) +
+                    (up ? Player.local.head.cam.transform.up * 0.25f : Vector3.zero),
                     Player.local.head.cam.transform.rotation);
-                yield return new WaitForSeconds(0.07f);
+                yield return new WaitForSeconds(MultiDaggerInterval);
             }
             yield break;
         }
@@ -176,6 +193,11 @@ namespace Yamato
             spawnedItem.IgnoreObjectCollision(item);
             spawnedItem.gameObject.AddComponent<DaggerDespawn>();
             spawnedItem.Throw();
+            foreach(Damager damager in spawnedItem.GetComponentsInChildren<Damager>())
+            {
+                if (!DaggerDismemberment)
+                    damager.data.dismembermentAllowed = DaggerDismemberment;
+            }
         }
         public Creature GetEnemy()
         {
@@ -191,14 +213,12 @@ namespace Yamato
                 else if (creature != null && !creature.isPlayer && creature.ragdoll.isActiveAndEnabled && !creature.isKilled && Vector3.Dot(Player.local.head.cam.transform.forward.normalized, (creature.transform.position - Player.local.transform.position).normalized) >= 0.9f && closestCreature != null &&
                     Vector3.Distance(Player.local.transform.position, creature.transform.position) <= 25)
                 {
-                    if (Vector3.Dot(Player.local.head.cam.transform.forward, (creature.transform.position - Player.local.transform.position)) >
-                    Vector3.Dot(Player.local.head.cam.transform.forward, (closestCreature.transform.position - Player.local.transform.position)))
-                        closestCreature = creature;
+                    if (Vector3.Distance(Player.local.transform.position, creature.transform.position) < Vector3.Distance(Player.local.transform.position, closestCreature.transform.position)) closestCreature = creature;
                 }
             }
             return closestCreature;
         }
-        public void Setup(float speed, string direction, bool gravity, bool collision, float time, bool stop, bool start, bool thumbstick, bool swap)
+        public void Setup(float speed, string direction, bool gravity, bool collision, float time, bool stop, bool start, bool thumbstick, bool swap, int count, float interval, bool realtime, ForceMode dashForceMode, bool dismember)
         {
             DashSpeed = speed;
             DashDirection = direction;
@@ -217,6 +237,11 @@ namespace Yamato
             StopOnStart = start;
             ThumbstickDash = thumbstick;
             SwapButtons = swap;
+            MultiDaggerCount = count;
+            MultiDaggerInterval = interval;
+            DashRealTime = realtime;
+            DashForceMode = dashForceMode;
+            DaggerDismemberment = dismember;
         }
     }
 }

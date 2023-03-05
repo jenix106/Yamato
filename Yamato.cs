@@ -8,18 +8,33 @@ namespace Yamato
 {
     public class YamatoModule : ItemModule
     {
-        public float BeamCooldown;
-        public float SwordSpeed;
-        public bool SwapButtons;
-        public bool StopOnJudgementCut;
-        public bool ToggleAnimeSlice;
-        public bool ToggleSwordBeams;
-        public bool SwapJudgementCutActivation;
-        public bool NoJudgementCut;
+        public float BeamCooldown = 0.15f;
+        public float SwordSpeed = 7;
+        public bool SwapButtons = false;
+        public bool StopOnJudgementCut = true;
+        public bool ToggleAnimeSlice = false;
+        public bool ToggleSwordBeams = false;
+        public bool SwapJudgementCutActivation = false;
+        public bool NoJudgementCut = false;
+        public bool PierceDismemberment = true;
+        public bool SlashDismemberment = true;
+        public bool JudgementCutDismemberment = true;
+        public float JudgementCutDamage = 20;
+        public bool JudgementCutEndDismemberment = true;
+        public float JudgementCutEndDamage = 20;
+        public bool AnimeSliceDismemberment = true;
+        public float AnimeSliceDamage = 20;
+        public bool AnimeSliceOnSpin = true;
+        public bool Motivation = true;
+        /*public float DTStrengthMult = 2f;
+        public float DTSpeedMult = 2f;
+        public float DTJumpMult = 2f;*/
         public override void OnItemLoaded(Item item)
         {
             base.OnItemLoaded(item);
-            item.gameObject.AddComponent<YamatoComponent>().Setup(SwordSpeed, BeamCooldown, SwapButtons, StopOnJudgementCut, ToggleAnimeSlice, ToggleSwordBeams, SwapJudgementCutActivation, NoJudgementCut);
+            item.gameObject.AddComponent<YamatoComponent>().Setup(SwordSpeed, BeamCooldown, SwapButtons, StopOnJudgementCut, ToggleAnimeSlice, ToggleSwordBeams, 
+                SwapJudgementCutActivation, NoJudgementCut, PierceDismemberment, SlashDismemberment, Motivation, JudgementCutDismemberment, JudgementCutDamage, 
+                JudgementCutEndDismemberment, JudgementCutEndDamage, AnimeSliceDismemberment, AnimeSliceDamage, AnimeSliceOnSpin/*, DTStrengthMult, DTSpeedMult, DTJumpMult*/);
         }
     }
     public class YamatoComponent : MonoBehaviour
@@ -45,8 +60,24 @@ namespace Yamato
         bool toggleSwordBeams;
         bool swapJCActivation;
         bool noJC;
+        bool pierceDismember;
+        bool slashDismember;
+        float springMult = 1;
+        bool motivation;
+        bool judgementCutDismemberment;
+        float judgementCutDamage;
+        bool judgementCutEndDismemberment;
+        float judgementCutEndDamage;
+        bool animeSliceDismemberment;
+        float animeSliceDamage;
+        bool animeSliceOnSpin;
+        /*Coroutine coroutine = null;
+        float DTStrengthMult;
+        float DTSpeedMult;
+        float DTJumpMult;
+        bool devil = false;*/
 
-        public void Awake()
+        public void Start()
         {
             item = GetComponent<Item>();
             item.OnSnapEvent += Item_OnSnapEvent;
@@ -56,13 +87,68 @@ namespace Yamato
             item.OnGrabEvent += Item_OnGrabEvent;
             item.OnTelekinesisReleaseEvent += Item_OnTelekinesisReleaseEvent;
             item.OnTelekinesisGrabEvent += Item_OnTelekinesisGrabEvent;
+            item.OnTKSpinStart += Item_OnTKSpinStart;
+            item.OnTKSpinEnd += Item_OnTKSpinEnd;
+            item.mainCollisionHandler.OnCollisionStartEvent += MainCollisionHandler_OnCollisionStartEvent;
             pierce = item.GetCustomReference("Pierce")?.gameObject?.GetComponent<Damager>();
             slash = item.GetCustomReference("Slash")?.gameObject?.GetComponent<Damager>();
             blades = item.GetCustomReference("Blades")?.gameObject;
             triggers = item.GetCustomReference("Triggers")?.gameObject;
-            triggers?.SetActive(false);
+            if (!pierceDismember) pierce.data.dismembermentAllowed = pierceDismember;
+            if (!slashDismember) slash.data.dismembermentAllowed = slashDismember;
         }
-        public void Setup(float speed, float cd, bool swap, bool stop, bool toggle, bool toggleBeam, bool swapJC, bool noJudgementCut)
+
+        private void Item_OnTKSpinEnd(Handle held, bool spinning, EventTime eventTime)
+        {
+            if (eventTime == EventTime.OnStart && active && animeSliceOnSpin)
+            {
+                Deactivate();
+            }
+        }
+
+        private void Item_OnTKSpinStart(Handle held, bool spinning, EventTime eventTime)
+        {
+            if (eventTime == EventTime.OnStart && !active && animeSliceOnSpin)
+            {
+                Activate();
+            }
+        }
+
+        private void MainCollisionHandler_OnCollisionStartEvent(CollisionInstance collisionInstance)
+        {
+            if(collisionInstance.IsDoneByPlayer() && collisionInstance.targetColliderGroup?.collisionHandler?.ragdollPart != null && collisionInstance.damageStruct.damage >= 1)
+            {
+                springMult += 0.2f;
+            }
+            /*if((collisionInstance.IsDoneByPlayer() || item.lastHandler?.creature?.player != null) && collisionInstance.targetCollider.GetComponentInParent<RagdollPart>() is RagdollPart part 
+                && part?.ragdoll?.creature?.player != null && part.type == RagdollPart.Type.Torso && collisionInstance.damageStruct.damageType == DamageType.Pierce)
+            {
+                if (coroutine != null) StopCoroutine(coroutine);
+                coroutine = StartCoroutine(DevilTrigger(collisionInstance));
+            }*/
+        }
+        /*public IEnumerator DevilTrigger(CollisionInstance collisionInstance)
+        {
+            left.SetJointModifier(this, DTStrengthMult, 1, DTStrengthMult, 1, 1);
+            right.SetJointModifier(this, DTStrengthMult, 1, DTStrengthMult, 1, 1);
+            Player.local.locomotion.SetSpeedModifier(this, DTSpeedMult, DTSpeedMult, DTSpeedMult, DTSpeedMult, DTJumpMult);
+            springMult = DTStrengthMult;
+            item.mainHandleRight.SetJointModifier(this, springMult, 1, springMult, 1);
+            Player.local.creature.currentHealth += collisionInstance.damageStruct.damage;
+            devil = true;
+            yield return new WaitForSeconds(60);
+            right.RemoveJointModifier(this);
+            left.RemoveJointModifier(this);
+            Player.local.locomotion.RemoveSpeedModifier(this);
+            springMult = 1f;
+            item.mainHandleRight.SetJointModifier(this, springMult, 1, springMult, 1);
+            devil = false;
+            yield break;
+        }*/
+
+        public void Setup(float speed, float cd, bool swap, bool stop, bool toggle, bool toggleBeam, bool swapJC, bool noJudgementCut, 
+            bool pierce, bool slash, bool motivate, bool jcDismember, float jcDamage, bool jceDismember, float jceDamage, 
+            bool animeDismember, float animeDamage, bool spin/*, float dtStrength, float dtSpeed, float dtJump*/)
         {
             swordSpeed = speed;
             cooldown = cd;
@@ -72,6 +158,19 @@ namespace Yamato
             toggleSwordBeams = toggleBeam;
             swapJCActivation = swapJC;
             noJC = noJudgementCut;
+            pierceDismember = pierce;
+            slashDismember = slash;
+            motivation = motivate;
+            judgementCutDismemberment = jcDismember;
+            judgementCutDamage = jcDamage;
+            judgementCutEndDismemberment = jceDismember;
+            judgementCutEndDamage = jceDamage;
+            animeSliceDismemberment = animeDismember;
+            animeSliceDamage = animeDamage;
+            animeSliceOnSpin = spin;
+            /*DTStrengthMult = dtStrength;
+            DTSpeedMult = dtSpeed;
+            DTJumpMult = dtJump;*/
         }
         private void Item_OnUnSnapEvent(Holder holder)
         {
@@ -102,6 +201,7 @@ namespace Yamato
                     if (Level.current.dungeon == null || (Level.current.dungeon != null && creature.currentRoom == Player.local.creature.currentRoom))
                     {
                         creatures.Add(creature);
+                        creature.TryPush(Creature.PushType.Hit, Player.local.creature.transform.position - creature.transform.position, 1);
                         creature.animator.speed = 0f;
                         creature.locomotion.allowMove = false;
                         creature.locomotion.allowTurn = false;
@@ -192,23 +292,29 @@ namespace Yamato
         }
         public void FixedUpdate()
         {
-            if (telekinesis != null && telekinesis.spinMode && !active)
-            {
-                Activate();
-            }
-            else if (telekinesis != null && !telekinesis.spinMode && active)
-            {
-                Deactivate();
-            }
-            if (Time.time - cdH <= cooldown || !beam || item.rb.velocity.magnitude - Player.local.locomotion.rb.velocity.magnitude < swordSpeed)
+            if (Time.time - cdH <= cooldown || !beam || item.rb.GetPointVelocity(item.flyDirRef.position).magnitude - item.rb.GetPointVelocity(item.holderPoint.position).magnitude < swordSpeed)
             {
                 return;
             }
             else
             {
                 cdH = Time.time;
-                Catalog.GetData<ItemData>("YamatoBeam").SpawnAsync(null, item.flyDirRef.position, Quaternion.LookRotation(item.flyDirRef.forward, item.rb.velocity));
+                Catalog.GetData<ItemData>("YamatoBeam").SpawnAsync(beam =>
+                {
+                    beam.GetComponent<BeamCustomization>().yamato = item;
+                    if (item.colliderGroups[0].imbue is Imbue imbue && imbue.spellCastBase != null && imbue.energy > 0)
+                        beam.colliderGroups[0].imbue.Transfer(imbue.spellCastBase, beam.colliderGroups[0].imbue.maxEnergy);
+                }, slash.transform.position, Quaternion.LookRotation(item.flyDirRef.forward, item.rb.GetPointVelocity(item.flyDirRef.position).normalized));
             }
+            if (springMult > 1/* && !devil*/)
+            {
+                springMult = Mathf.Clamp(springMult - (0.05f * Time.fixedDeltaTime), 1, 5);
+                if (motivation)
+                {
+                    item.mainHandleRight.SetJointModifier(this, springMult, 1, springMult, 1);
+                }
+            }
+            /*if (devil) Player.local.creature.Heal(Player.local.creature.maxHealth / 50 * Time.fixedDeltaTime, Player.local.creature);*/
         }
         public void Deactivate()
         {
@@ -229,22 +335,31 @@ namespace Yamato
             foreach (RagdollPart part in creature.ragdoll.parts)
             {
                 part.gameObject.SetActive(true);
-                if (part.sliceAllowed)
+                CollisionInstance instance = new CollisionInstance(new DamageStruct(DamageType.Slash, judgementCutEndDamage))
                 {
-                    CollisionInstance instance = new CollisionInstance(new DamageStruct(DamageType.Slash, 20f));
-                    instance.damageStruct.hitRagdollPart = part;
-                    part.ragdoll.creature.Damage(instance);
+                    targetCollider = part.colliderGroup.colliders[0],
+                    targetColliderGroup = part.colliderGroup,
+                    sourceCollider = item.colliderGroups[0].colliders[0],
+                    sourceColliderGroup = item.colliderGroups[0],
+                    casterHand = item.lastHandler.caster,
+                    impactVelocity = item.rb.velocity,
+                    contactPoint = part.transform.position,
+                    contactNormal = -item.rb.velocity
+                };
+                instance.damageStruct.hitRagdollPart = part;
+                if (item.colliderGroups[0].imbue.energy > 0 && item.colliderGroups[0].imbue is Imbue imbue)
+                {
+                    imbue.spellCastBase.OnImbueCollisionStart(instance);
+                    yield return null;
+                }
+                if (part.sliceAllowed && judgementCutEndDismemberment)
+                {
                     part.ragdoll.TrySlice(part);
                     if (part.data.sliceForceKill)
                         part.ragdoll.creature.Kill();
                     yield return null;
                 }
-                else if (!part.ragdoll.creature.isKilled)
-                {
-                    CollisionInstance instance = new CollisionInstance(new DamageStruct(DamageType.Slash, 20f));
-                    instance.damageStruct.hitRagdollPart = part;
-                    part.ragdoll.creature.Damage(instance);
-                }
+                part.ragdoll.creature.Damage(instance);
             }
             yield break;
         }
@@ -273,22 +388,31 @@ namespace Yamato
                 if (part?.ragdoll?.creature?.gameObject?.activeSelf == true && part != null && !part.isSliced && part?.ragdoll?.creature != Player.currentCreature)
                 {
                     part.gameObject.SetActive(true);
-                    if (part.sliceAllowed)
+                    CollisionInstance instance = new CollisionInstance(new DamageStruct(DamageType.Slash, animeSliceDamage))
                     {
-                        CollisionInstance instance = new CollisionInstance(new DamageStruct(DamageType.Slash, 20f));
-                        instance.damageStruct.hitRagdollPart = part;
-                        part.ragdoll.creature.Damage(instance);
+                        targetCollider = part.colliderGroup.colliders[0],
+                        targetColliderGroup = part.colliderGroup,
+                        sourceCollider = item.colliderGroups[0].colliders[0],
+                        sourceColliderGroup = item.colliderGroups[0],
+                        casterHand = item.lastHandler.caster,
+                        impactVelocity = item.rb.velocity,
+                        contactPoint = part.transform.position,
+                        contactNormal = -item.rb.velocity
+                    };
+                    instance.damageStruct.hitRagdollPart = part;
+                    if(item.colliderGroups[0].imbue.energy > 0 && item.colliderGroups[0].imbue is Imbue imbue)
+                    {
+                        imbue.spellCastBase.OnImbueCollisionStart(instance);
+                        yield return null;
+                    }
+                    if (part.sliceAllowed && animeSliceDismemberment)
+                    {
                         part.ragdoll.TrySlice(part);
                         if (part.data.sliceForceKill)
                             part.ragdoll.creature.Kill();
                         yield return null;
                     }
-                    else if (!part.sliceAllowed && !part.ragdoll.creature.isKilled)
-                    {
-                        CollisionInstance instance = new CollisionInstance(new DamageStruct(DamageType.Slash, 20f));
-                        instance.damageStruct.hitRagdollPart = part;
-                        part.ragdoll.creature.Damage(instance);
-                    }
+                    part.ragdoll.creature.Damage(instance);
                 }
             }
             parts.Clear();
@@ -297,19 +421,23 @@ namespace Yamato
         public IEnumerator JudgementCut(Item otherItem)
         {
             yield return new WaitForSecondsRealtime(0.1f);
-            if ((sheathed == true && !swapJCActivation) || (sheathed == false && swapJCActivation) || (otherItem.GetComponent<YamatoSheathFrameworkComponent>() != null && item.mainHandler == null) 
+            if ((sheathed == true && !swapJCActivation) || (sheathed == false && swapJCActivation) || (otherItem.GetComponent<YamatoSheathFrameworkComponent>() != null && item.mainHandler == null)
                 || (otherItem.GetComponent<YamatoSheathFrameworkComponent>() != null && item.mainHandler != null && !item.mainHandler.playerHand.controlHand.usePressed)) yield break;
             GameObject creature = new GameObject();
-            if(GetEnemy()?.ragdoll?.targetPart != null)
-            creature.AddComponent<JudgementCutPosition>().position = GetEnemy().ragdoll.targetPart.transform.position;
+            JudgementCutPosition position = creature.AddComponent<JudgementCutPosition>();
+            if (GetEnemy()?.ragdoll?.targetPart != null)
+                position.position = GetEnemy().ragdoll.targetPart.transform.position;
             else
             {
                 RaycastHit hit;
                 if (Physics.Raycast(Player.local.head.transform.position, Player.local.head.cam.transform.forward, out hit, Mathf.Infinity, Physics.AllLayers, QueryTriggerInteraction.Ignore))
                 {
-                    creature.AddComponent<JudgementCutPosition>().position = hit.point;
+                    position.position = hit.point;
                 }
             }
+            position.yamato = item;
+            position.damage = judgementCutDamage;
+            position.dismember = judgementCutDismemberment;
             if (stopOnJC && !Player.local.locomotion.isGrounded)
             {
                 Player.local.locomotion.rb.velocity = Vector3.zero;
@@ -343,18 +471,12 @@ namespace Yamato
         }
         public void OnTriggerEnter(Collider c)
         {
-            if (item.holder == null && c.GetComponentInParent<ColliderGroup>() != null)
+            if (item.holder == null && c.GetComponentInParent<ColliderGroup>() is ColliderGroup group && group.collisionHandler.isRagdollPart)
             {
-                ColliderGroup enemy = c.GetComponentInParent<ColliderGroup>();
-                if (enemy?.collisionHandler?.ragdollPart != null && enemy?.collisionHandler?.ragdollPart?.ragdoll?.creature != Player.currentCreature)
+                group.collisionHandler.ragdollPart.gameObject.SetActive(true);
+                if (!parts.Contains(group.collisionHandler.ragdollPart))
                 {
-                    RagdollPart part = enemy.collisionHandler.ragdollPart;
-                    part.gameObject.SetActive(true);
-                    Creature creature = part.ragdoll.creature;
-                    if (creature != Player.currentCreature && parts.Contains(part) == false)
-                    {
-                        parts.Add(part);
-                    }
+                    parts.Add(group.collisionHandler.ragdollPart);
                 }
             }
         }
