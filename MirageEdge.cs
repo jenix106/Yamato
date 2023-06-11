@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Collections;
 using ThunderRoad;
 using UnityEngine;
 
@@ -11,24 +6,10 @@ namespace Yamato
 {
     public class MirageModule : ItemModule
     {
-        public float DashSpeed = 1000;
-        public string DashDirection = "Item";
-        public bool DisableGravity = true;
-        public bool DisableCollision = false;
-        public float DashTime = 0.5f;
-        public float BeamCooldown = 0.15f;
-        public float SwordSpeed = 7;
-        public float RotateDegreesPerSecond = 2160;
-        public float ReturnSpeed = 10;
-        public bool StopOnEnd = false;
-        public bool StopOnStart = false;
-        public bool ThumbstickDash = true;
-        public bool SwapButtons = false;
-        public bool ToggleSwordBeams = false;
         public override void OnItemLoaded(Item item)
         {
             base.OnItemLoaded(item);
-            item.gameObject.AddComponent<MirageComponent>().Setup(DashSpeed, DashDirection, DisableGravity, DisableCollision, DashTime, SwordSpeed, BeamCooldown, RotateDegreesPerSecond, ReturnSpeed, StopOnEnd, StopOnStart, ThumbstickDash, SwapButtons, ToggleSwordBeams);
+            item.gameObject.AddComponent<MirageComponent>();
         }
     }
     public class MirageComponent : MonoBehaviour
@@ -38,22 +19,8 @@ namespace Yamato
         Holder lastHolder;
         RagdollHand lastHandler;
         bool startUpdate;
-        public float DashSpeed;
-        public string DashDirection;
-        public bool DisableGravity;
-        public bool DisableCollision;
-        public float DashTime;
         float cdH;
-        float cooldown;
-        float swordSpeed;
         bool beam;
-        public float RotationSpeed;
-        public float ReturnSpeed;
-        public bool StopOnEnd;
-        public bool StopOnStart;
-        bool ThumbstickDash;
-        bool SwapButtons;
-        bool ToggleSwordBeams;
         public void Start()
         {
             item = GetComponent<Item>();
@@ -69,6 +36,25 @@ namespace Yamato
             instance.Play();
             item.data.category = "Utilities";
         }
+        public Creature GetEnemy()
+        {
+            Creature closestCreature = null;
+            if (Creature.allActive.Count <= 0) return null;
+            foreach (Creature creature in Creature.allActive)
+            {
+                if (creature != null && !creature.isPlayer && creature.ragdoll.isActiveAndEnabled && !creature.isKilled && Vector3.Angle(item.physicBody.velocity.normalized, (creature.ragdoll.targetPart.transform.position - item.transform.position).normalized) <= 20 && closestCreature == null &&
+                    Vector3.Distance(item.transform.position, creature.ragdoll.targetPart.transform.position) <= 25)
+                {
+                    closestCreature = creature;
+                }
+                else if (creature != null && !creature.isPlayer && creature.ragdoll.isActiveAndEnabled && !creature.isKilled && Vector3.Angle(item.physicBody.velocity.normalized, (creature.ragdoll.targetPart.transform.position - item.transform.position).normalized) <= 20 && closestCreature != null &&
+                    Vector3.Distance(item.transform.position, creature.ragdoll.targetPart.transform.position) <= 25)
+                {
+                    if (Vector3.Distance(item.transform.position, creature.ragdoll.targetPart.transform.position) < Vector3.Distance(item.transform.position, closestCreature.ragdoll.targetPart.transform.position)) closestCreature = creature;
+                }
+            }
+            return closestCreature;
+        }
 
         private void Item_OnTelekinesisReleaseEvent(Handle handle, SpellTelekinesis teleGrabber)
         {
@@ -79,62 +65,45 @@ namespace Yamato
         {
             lastHandler = ragdollHand;
             beam = false;
+            if (throwing)
+            {
+                float magnitude = item.physicBody.velocity.magnitude;
+                Creature enemy = GetEnemy();
+                if(enemy != null)
+                {
+                    item.physicBody.velocity = -(item.transform.position - enemy.ragdoll.targetPart.transform.position).normalized * magnitude;
+                }
+            }
         }
 
         private void Item_OnGrabEvent(Handle handle, RagdollHand ragdollHand)
         {
-            item.rb.useGravity = true;
+            item.physicBody.useGravity = true;
             isThrown = false;
             startUpdate = false;
         }
 
-        public void Setup(float speed, string direction, bool gravity, bool collision, float time, float SwordSpeed, float BeamCooldown, float rotationSpeed, float returnSpeed, bool stop, bool start, bool thumbstick, bool swap, bool toggle)
-        {
-            DashSpeed = speed;
-            DashDirection = direction;
-            DisableGravity = gravity;
-            DisableCollision = collision;
-            DashTime = time;
-            if (direction.ToLower().Contains("player") || direction.ToLower().Contains("head") || direction.ToLower().Contains("sight"))
-            {
-                DashDirection = "Player";
-            }
-            else if (direction.ToLower().Contains("item") || direction.ToLower().Contains("sheath") || direction.ToLower().Contains("flyref") || direction.ToLower().Contains("weapon"))
-            {
-                DashDirection = "Item";
-            }
-            swordSpeed = SwordSpeed;
-            cooldown = BeamCooldown;
-            RotationSpeed = rotationSpeed;
-            ReturnSpeed = returnSpeed;
-            StopOnEnd = stop;
-            StopOnStart = start;
-            ThumbstickDash = thumbstick;
-            SwapButtons = swap;
-            ToggleSwordBeams = toggle;
-        }
-
         private void Item_OnHeldActionEvent(RagdollHand ragdollHand, Handle handle, Interactable.Action action)
         {
-            if ((!SwapButtons && action == Interactable.Action.AlternateUseStart) || (SwapButtons && action == Interactable.Action.UseStart))
+            if ((!YamatoManager.MirageSwapButtons && action == Interactable.Action.AlternateUseStart) || (YamatoManager.MirageSwapButtons && action == Interactable.Action.UseStart))
             {
                 StopCoroutine(Dash());
                 StartCoroutine(Dash());
             }
-            if (!ToggleSwordBeams)
+            if (!YamatoManager.MirageToggleSwordBeams)
             {
-                if ((!SwapButtons && action == Interactable.Action.UseStart) || (SwapButtons && action == Interactable.Action.AlternateUseStart))
+                if ((!YamatoManager.MirageSwapButtons && action == Interactable.Action.UseStart) || (YamatoManager.MirageSwapButtons && action == Interactable.Action.AlternateUseStart))
                 {
                     beam = true;
                 }
-                else if ((!SwapButtons && action == Interactable.Action.UseStop) || (SwapButtons && action == Interactable.Action.AlternateUseStop))
+                else if ((!YamatoManager.MirageSwapButtons && action == Interactable.Action.UseStop) || (YamatoManager.MirageSwapButtons && action == Interactable.Action.AlternateUseStop))
                 {
                     beam = false;
                 }
             }
             else
             {
-                if ((!SwapButtons && action == Interactable.Action.UseStart) || (SwapButtons && action == Interactable.Action.AlternateUseStart))
+                if ((!YamatoManager.MirageSwapButtons && action == Interactable.Action.UseStart) || (YamatoManager.MirageSwapButtons && action == Interactable.Action.AlternateUseStart))
                 {
                     beam = !beam;
                 }
@@ -142,40 +111,47 @@ namespace Yamato
         }
         public IEnumerator Dash()
         {
-            if (StopOnStart) Player.local.locomotion.rb.velocity = Vector3.zero;
-            if (Player.local.locomotion.moveDirection.magnitude <= 0 || !ThumbstickDash)
-                if (DashDirection == "Item")
+            if (YamatoManager.MirageStopOnStart) Player.local.locomotion.rb.velocity = Vector3.zero;
+            if (Player.local.locomotion.moveDirection.magnitude <= 0 || !YamatoManager.MirageThumbstickDash)
+                if (YamatoManager.MirageDashDirection == "Item")
                 {
-                    Player.local.locomotion.rb.AddForce(item.mainHandler.grip.up * DashSpeed, ForceMode.Impulse);
+                    Player.local.locomotion.rb.AddForce(item.mainHandler.grip.up * (!YamatoManager.MirageDashRealTime ? YamatoManager.MirageDashSpeed : YamatoManager.MirageDashSpeed / Time.timeScale), YamatoManager.MirageDashForceMode);
                 }
                 else
                 {
-                    Player.local.locomotion.rb.AddForce(Player.local.head.transform.forward * DashSpeed, ForceMode.Impulse);
+                    Player.local.locomotion.rb.AddForce(Player.local.head.transform.forward * (!YamatoManager.MirageDashRealTime ? YamatoManager.MirageDashSpeed : YamatoManager.MirageDashSpeed / Time.timeScale), YamatoManager.MirageDashForceMode);
                 }
             else
             {
-                Player.local.locomotion.rb.AddForce(Player.local.locomotion.moveDirection.normalized * DashSpeed, ForceMode.Impulse);
+                Player.local.locomotion.rb.AddForce(Player.local.locomotion.moveDirection.normalized * (!YamatoManager.MirageDashRealTime ? YamatoManager.MirageDashSpeed : YamatoManager.MirageDashSpeed / Time.timeScale), YamatoManager.MirageDashForceMode);
             }
-            if (DisableGravity)
+            if (YamatoManager.MirageDisableGravity)
                 Player.local.locomotion.rb.useGravity = false;
-            if (DisableCollision)
+            if (YamatoManager.MirageDisableBodyCollision)
             {
                 Player.local.locomotion.rb.detectCollisions = false;
-                item.rb.detectCollisions = false;
-                item.mainHandler.rb.detectCollisions = false;
-                item.mainHandler.otherHand.rb.detectCollisions = false;
             }
-            yield return new WaitForSeconds(DashTime);
-            if (DisableGravity)
+            if (YamatoManager.MirageDisableWeaponCollision)
+            {
+                item.physicBody.rigidBody.detectCollisions = false;
+                item.mainHandler.physicBody.rigidBody.detectCollisions = false;
+                item.mainHandler.otherHand.physicBody.rigidBody.detectCollisions = false;
+            }
+            if (YamatoManager.MirageDashRealTime) yield return new WaitForSecondsRealtime(YamatoManager.MirageDashTime);
+            else yield return new WaitForSeconds(YamatoManager.MirageDashTime);
+            if (YamatoManager.MirageDisableGravity)
                 Player.local.locomotion.rb.useGravity = true;
-            if (DisableCollision)
+            if (YamatoManager.MirageDisableBodyCollision)
             {
                 Player.local.locomotion.rb.detectCollisions = true;
-                item.rb.detectCollisions = true;
-                item.mainHandler.rb.detectCollisions = true;
-                item.mainHandler.otherHand.rb.detectCollisions = true;
             }
-            if (StopOnEnd) Player.local.locomotion.rb.velocity = Vector3.zero;
+            if (YamatoManager.MirageDisableWeaponCollision)
+            {
+                item.physicBody.rigidBody.detectCollisions = true;
+                item.mainHandler.physicBody.rigidBody.detectCollisions = true;
+                item.mainHandler.otherHand.physicBody.rigidBody.detectCollisions = true;
+            }
+            if (YamatoManager.MirageStopOnEnd) Player.local.locomotion.rb.velocity = Vector3.zero;
             yield break;
         }
 
@@ -197,9 +173,10 @@ namespace Yamato
             if (item.isTelekinesisGrabbed) lastHandler = null;
             if (item.isFlying && lastHandler != null)
             {
-                item.flyDirRef.Rotate(new Vector3(0, RotationSpeed, 0) * Time.fixedDeltaTime);
-                item.rb.useGravity = false;
-                item.rb.AddForce(-(item.transform.position - lastHandler.transform.position).normalized * ReturnSpeed, ForceMode.Force);
+                item.flyDirRef.Rotate(new Vector3(0, YamatoManager.MirageRotateDegreesPerSecond, 0) * Time.fixedDeltaTime);
+                item.physicBody.useGravity = false;
+                item.physicBody.mass = 10000;
+                item.physicBody.AddForce(-(item.transform.position - lastHandler.transform.position).normalized * YamatoManager.MirageReturnSpeed * item.physicBody.mass, YamatoManager.MirageReturnForceMode);
                 item.IgnoreRagdollCollision(Player.local.creature.ragdoll);
                 isThrown = true;
                 startUpdate = true;
@@ -210,12 +187,13 @@ namespace Yamato
             }
             else
             {
+                item.physicBody.mass = 1;
                 item.flyDirRef.localRotation = Quaternion.identity;
-                item.rb.useGravity = true;
+                item.physicBody.useGravity = true;
                 isThrown = false;
                 startUpdate = false;
             }
-            if (lastHandler != null && Vector3.Dot(item.rb.velocity.normalized, (item.transform.position - lastHandler.transform.position).normalized) < 0 &&
+            if (lastHandler != null && Vector3.Dot(item.physicBody.velocity.normalized, (item.transform.position - lastHandler.transform.position).normalized) < 0 &&
                 Vector3.Distance(item.GetMainHandle(lastHandler.side).transform.position, lastHandler.transform.position) <= 1 && !item.IsHanded() && isThrown && !item.isTelekinesisGrabbed &&
                 startUpdate)
             {
@@ -238,23 +216,29 @@ namespace Yamato
                 {
                     BackpackHolder.instance.StoreItem(item);
                 }
-                item.rb.useGravity = true;
+                item.physicBody.useGravity = true;
                 isThrown = false;
                 startUpdate = false;
             }
-            if (Time.time - cdH <= cooldown || !beam || item.rb.velocity.magnitude - Player.local.locomotion.rb.velocity.magnitude < swordSpeed)
+            if (Time.time - cdH <= YamatoManager.MirageBeamCooldown || !beam || item.physicBody.velocity.magnitude - Player.local.locomotion.rb.velocity.magnitude < YamatoManager.MirageSwordSpeed)
             {
                 return;
             }
             else
             {
                 cdH = Time.time;
-                Catalog.GetData<ItemData>("YamatoBeam").SpawnAsync(beam =>
+                Catalog.GetData<ItemData>("MirageBeam").SpawnAsync(beam =>
                 {
-                    beam.GetComponent<BeamCustomization>().yamato = item;
+                    MirageBeam beamCustomization = beam.gameObject.AddComponent<MirageBeam>();
+                    beamCustomization.mirage = item;
+                    beamCustomization.user = item.mainHandler != null ? item.mainHandler?.creature : item.lastHandler?.creature;
+                    if (beamCustomization.user?.player != null) beam.physicBody.AddForce(Player.local.head.transform.forward * YamatoManager.MirageBeamSpeed, ForceMode.Impulse);
+                    else if (beamCustomization.user?.brain?.currentTarget is Creature target) beam.physicBody.AddForce(-(beam.transform.position - target.ragdoll.targetPart.transform.position).normalized * YamatoManager.MirageBeamSpeed, ForceMode.Impulse);
+                    else beam.physicBody.AddForce(beamCustomization.user.ragdoll.headPart.transform.forward * YamatoManager.MirageBeamSpeed, ForceMode.Impulse);
+                    beam.physicBody.angularVelocity = Vector3.zero;
                     if (item.colliderGroups[0].imbue is Imbue imbue && imbue.spellCastBase != null && imbue.energy > 0)
                         beam.colliderGroups[0].imbue.Transfer(imbue.spellCastBase, beam.colliderGroups[0].imbue.maxEnergy);
-                }, item.flyDirRef.position, Quaternion.LookRotation(item.flyDirRef.forward, item.rb.velocity));
+                }, item.flyDirRef.position, Quaternion.LookRotation(item.flyDirRef.forward, item.physicBody.GetPointVelocity(item.flyDirRef.position).normalized), null, false);
             }
         }
     }

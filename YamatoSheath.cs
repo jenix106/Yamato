@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Collections;
 using ThunderRoad;
 using UnityEngine;
 
@@ -11,49 +6,27 @@ namespace Yamato
 {
     public class SheathModule : ItemModule
     {
-        public float DashSpeed = 1000;
-        public string DashDirection = "Player";
-        public bool DisableGravity = true;
-        public bool DisableCollision = true;
-        public float DashTime = 0.5f;
-        public bool StopOnEnd = false;
-        public bool StopOnStart = false;
-        public bool ThumbstickDash = true;
-        public bool SwapButtons = false;
-        public int MultiDaggerCount = 8;
-        public float MultiDaggerInterval = 0.07f;
-        public bool DashRealTime = false;
-        public ForceMode DashForceMode = ForceMode.Impulse;
-        public bool DaggerDismemberment = true;
         public override void OnItemLoaded(Item item)
         {
             base.OnItemLoaded(item);
-            item.gameObject.AddComponent<SheathComponent>().Setup(DashSpeed, DashDirection, DisableGravity, DisableCollision, DashTime, StopOnEnd, StopOnStart, ThumbstickDash, SwapButtons, MultiDaggerCount, MultiDaggerInterval, DashRealTime, DashForceMode, DaggerDismemberment);
+            item.gameObject.AddComponent<SheathComponent>();
         }
     }
     public class SheathComponent : MonoBehaviour
     {
         Item item;
-        public float DashSpeed;
-        public string DashDirection;
-        public bool DisableGravity;
-        public bool DisableCollision;
-        public float DashTime;
-        public bool StopOnEnd;
-        public bool StopOnStart;
-        public int MultiDaggerCount;
-        public float MultiDaggerInterval;
-        public bool DashRealTime;
-        bool ThumbstickDash;
-        bool SwapButtons;
         bool holding = false;
         bool firing = false;
         float cdH;
         GameObject handleColliders;
         bool right = false;
         bool up = false;
-        public ForceMode DashForceMode;
-        public bool DaggerDismemberment;
+        bool blisteringBlades = false;
+        bool heavyRainBlades = false;
+        bool stormBlades = false;
+        bool spiralBlades = false;
+        bool holderSwap = false;
+        bool handleSwap = false;
         public void Start()
         {
             item = GetComponent<Item>();
@@ -64,7 +37,46 @@ namespace Yamato
                 item.GetComponentInChildren<Holder>().Snapped += SheathComponent_Snapped;
                 item.GetComponentInChildren<Holder>().UnSnapped += SheathComponent_UnSnapped;
             }
+            else
+            {
+                handleColliders.SetActive(false);
+            }
             item.data.category = "Utilities";
+        }
+        public void Update()
+        {
+            if (YamatoManager.SheathHeldOrientation && !holderSwap)
+            {
+                holderSwap = true;
+                item.mainHandleRight.gameObject.transform.Rotate(new Vector3(0, 180, 0));
+                RagdollHand ragdollHand = item.mainHandler;
+                ragdollHand?.TryRelease();
+                ragdollHand?.Grab(item.mainHandleRight, true);
+            }
+            else if (!YamatoManager.SheathHeldOrientation && holderSwap)
+            {
+                holderSwap = false;
+                item.mainHandleRight.gameObject.transform.Rotate(new Vector3(0, -180, 0));
+                RagdollHand ragdollHand = item.mainHandler;
+                ragdollHand?.TryRelease();
+                ragdollHand?.Grab(item.mainHandleRight, true);
+            }
+            if (YamatoManager.SheathHolsteredOrientation && !handleSwap)
+            {
+                handleSwap = true;
+                item.holderPoint.Rotate(new Vector3(-180, 60, 0));
+                Holder holder = item.holder;
+                holder?.UnSnap(item, true, false);
+                holder?.Snap(item, true, false);
+            }
+            else if (!YamatoManager.SheathHolsteredOrientation && handleSwap)
+            {
+                handleSwap = false;
+                item.holderPoint.Rotate(new Vector3(180, 60, 0));
+                Holder holder = item.holder;
+                holder?.UnSnap(item, true, false);
+                holder?.Snap(item, true, false);
+            }
         }
 
         private void SheathComponent_UnSnapped(Item item)
@@ -81,9 +93,28 @@ namespace Yamato
         {
             if (holding && !firing)
             {
-                if (Time.time - cdH >= 0.75f)
+                if (Time.time - cdH >= 0.15f)
                 {
-                    StartCoroutine(ShootMultiDaggers());
+                    if (blisteringBlades)
+                    {
+                        StartCoroutine(BlisteringBlades());
+                    }
+                    else if (heavyRainBlades)
+                    {
+                        StartCoroutine(HeavyRainBlades());
+                    }
+                    else if (stormBlades)
+                    {
+                        StartCoroutine(StormBlades());
+                    }
+                    else if (spiralBlades)
+                    {
+                        StartCoroutine(SpiralBlades());
+                    }
+                    blisteringBlades = false;
+                    heavyRainBlades = false;
+                    stormBlades = false;
+                    spiralBlades = false;
                     firing = true;
                 }
             }
@@ -91,30 +122,38 @@ namespace Yamato
         }
         private void Item_OnHeldActionEvent(RagdollHand ragdollHand, Handle handle, Interactable.Action action)
         {
-            if ((!SwapButtons && action == Interactable.Action.AlternateUseStart) || (SwapButtons && action == Interactable.Action.UseStart))
+            if ((YamatoManager.SwapSheathButtons && action == Interactable.Action.AlternateUseStart) || (!YamatoManager.SwapSheathButtons && action == Interactable.Action.UseStart))
             {
                 StopCoroutine(Dash());
                 StartCoroutine(Dash());
             }
-            if ((!SwapButtons && action == Interactable.Action.UseStart) || (SwapButtons && action == Interactable.Action.AlternateUseStart))
+            if ((YamatoManager.SwapSheathButtons && action == Interactable.Action.UseStart) || (!YamatoManager.SwapSheathButtons && action == Interactable.Action.AlternateUseStart))
             {
                 right = !right;
                 if (!right) up = !up;
-                Catalog.GetData<ItemData>("MirageBlade").SpawnAsync(ShootDagger,
-                    Player.local.head.cam.transform.position + ((right ? Player.local.head.cam.transform.right : -Player.local.head.cam.transform.right) * 0.4f) +
-                    (up ? Player.local.head.cam.transform.up * 0.25f : Vector3.zero),
+                Catalog.GetData<ItemData>("MirageBlade").SpawnAsync(ShootBlades,
+                    Player.local.head.cam.transform.position + ((right ? Player.local.head.cam.transform.right : -Player.local.head.cam.transform.right) * 0.25f) +
+                    ((up ? Player.local.head.cam.transform.up : -Player.local.head.cam.transform.up) * 0.1f),
                     Player.local.head.cam.transform.rotation);
                 GameObject effect = new GameObject();
-                effect.transform.position = Player.local.head.cam.transform.position + (right ? Player.local.head.cam.transform.right : -Player.local.head.cam.transform.right) +
-                    (up ? Player.local.head.cam.transform.up * 0.5f : Vector3.zero);
+                effect.transform.position = Player.local.head.cam.transform.position + ((right ? Player.local.head.cam.transform.right : -Player.local.head.cam.transform.right) * 0.25f) +
+                    ((up ? Player.local.head.cam.transform.up : -Player.local.head.cam.transform.up) * 0.1f);
                 effect.transform.rotation = Quaternion.identity;
                 EffectInstance instance = Catalog.GetData<EffectData>("MirageBladeSpawn").Spawn(effect.transform, false);
                 instance.SetIntensity(1);
                 instance.Play();
                 Destroy(effect, 2);
                 holding = true;
+                if (item.physicBody.velocity.sqrMagnitude >= 0.01f)
+                {
+                    blisteringBlades = Vector3.Angle((item.physicBody.velocity - item.mainHandler.creature.currentLocomotion.velocity).normalized, item.mainHandler.creature.player.head.cam.transform.forward.normalized) <= 45;
+                    heavyRainBlades = Vector3.Angle((item.physicBody.velocity - item.mainHandler.creature.currentLocomotion.velocity).normalized, item.mainHandler.creature.player.head.cam.transform.forward.normalized) > 45 &&
+                        Vector3.Angle((item.physicBody.velocity - item.mainHandler.creature.currentLocomotion.velocity).normalized, -item.mainHandler.creature.player.head.cam.transform.forward.normalized) > 45;
+                    stormBlades = Vector3.Angle((item.physicBody.velocity - item.mainHandler.creature.currentLocomotion.velocity).normalized, -item.mainHandler.creature.player.head.cam.transform.forward.normalized) <= 45;
+                }
+                spiralBlades = item.physicBody.velocity.sqrMagnitude < 0.01f;
             }
-            if ((!SwapButtons && action == Interactable.Action.UseStop) || (SwapButtons && action == Interactable.Action.AlternateUseStop))
+            if ((YamatoManager.SwapSheathButtons && action == Interactable.Action.UseStop) || (!YamatoManager.SwapSheathButtons && action == Interactable.Action.AlternateUseStop))
             {
                 holding = false;
                 firing = false;
@@ -122,44 +161,50 @@ namespace Yamato
         }
         public IEnumerator Dash()
         {
-            if (StopOnStart) Player.local.locomotion.rb.velocity = Vector3.zero;
-            if (Player.local.locomotion.moveDirection.magnitude <= 0 || !ThumbstickDash)
-                if (DashDirection == "Item")
+            if (YamatoManager.StopOnStart) Player.local.locomotion.rb.velocity = Vector3.zero;
+            if (Player.local.locomotion.moveDirection.magnitude <= 0 || !YamatoManager.ThumbstickDash)
+                if (YamatoManager.DashDirection == "Item")
                 {
-                    Player.local.locomotion.rb.AddForce(item.mainHandler.grip.up * (!DashRealTime? DashSpeed : DashSpeed / Time.timeScale), DashForceMode);
+                    Player.local.locomotion.rb.AddForce(item.mainHandler.grip.up * (!YamatoManager.DashRealTime ? YamatoManager.DashSpeed : YamatoManager.DashSpeed / Time.timeScale), YamatoManager.DashForceMode);
                 }
                 else
                 {
-                    Player.local.locomotion.rb.AddForce(Player.local.head.transform.forward * (!DashRealTime ? DashSpeed : DashSpeed / Time.timeScale), DashForceMode);
+                    Player.local.locomotion.rb.AddForce(Player.local.head.transform.forward * (!YamatoManager.DashRealTime ? YamatoManager.DashSpeed : YamatoManager.DashSpeed / Time.timeScale), YamatoManager.DashForceMode);
                 }
             else
             {
-                Player.local.locomotion.rb.AddForce(Player.local.locomotion.moveDirection.normalized * (!DashRealTime ? DashSpeed : DashSpeed / Time.timeScale), DashForceMode);
+                Player.local.locomotion.rb.AddForce(Player.local.locomotion.moveDirection.normalized * (!YamatoManager.DashRealTime ? YamatoManager.DashSpeed : YamatoManager.DashSpeed / Time.timeScale), YamatoManager.DashForceMode);
             }
-            if (DisableGravity)
+            if (YamatoManager.DisableGravity)
                 Player.local.locomotion.rb.useGravity = false;
-            if (DisableCollision)
+            if (YamatoManager.DisableBodyCollision)
             {
                 Player.local.locomotion.rb.detectCollisions = false;
-                item.rb.detectCollisions = false;
-                item.mainHandler.rb.detectCollisions = false;
-                item.mainHandler.otherHand.rb.detectCollisions = false;
             }
-            if (DashRealTime) yield return new WaitForSecondsRealtime(DashTime);
-            else yield return new WaitForSeconds(DashTime);
-            if (DisableGravity)
+            if (YamatoManager.DisableWeaponCollision)
+            {
+                item.physicBody.rigidBody.detectCollisions = false;
+                item.mainHandler.physicBody.rigidBody.detectCollisions = false;
+                item.mainHandler.otherHand.physicBody.rigidBody.detectCollisions = false;
+            }
+            if (YamatoManager.DashRealTime) yield return new WaitForSecondsRealtime(YamatoManager.DashTime);
+            else yield return new WaitForSeconds(YamatoManager.DashTime);
+            if (YamatoManager.DisableGravity)
                 Player.local.locomotion.rb.useGravity = true;
-            if (DisableCollision)
+            if (YamatoManager.DisableBodyCollision)
             {
                 Player.local.locomotion.rb.detectCollisions = true;
-                item.rb.detectCollisions = true;
-                item.mainHandler.rb.detectCollisions = true;
-                item.mainHandler.otherHand.rb.detectCollisions = true;
             }
-            if (StopOnEnd) Player.local.locomotion.rb.velocity = Vector3.zero;
+            if (YamatoManager.DisableWeaponCollision)
+            {
+                item.physicBody.rigidBody.detectCollisions = true;
+                item.mainHandler.physicBody.rigidBody.detectCollisions = true;
+                item.mainHandler.otherHand.physicBody.rigidBody.detectCollisions = true;
+            }
+            if (YamatoManager.StopOnEnd) Player.local.locomotion.rb.velocity = Vector3.zero;
             yield break;
         }
-        public IEnumerator ShootMultiDaggers()
+        public IEnumerator BlisteringBlades()
         {
             GameObject effect = new GameObject();
             effect.transform.position = Player.local.head.cam.transform.position;
@@ -168,26 +213,151 @@ namespace Yamato
             instance.SetIntensity(1);
             instance.Play();
             Destroy(effect, 2);
-            for (int i = 0; i < MultiDaggerCount; i++)
+            for (int i = 0; i < YamatoManager.BlisteringBladesCount; i++)
             {
                 right = !right;
                 if(!right) up = !up;
-                Catalog.GetData<ItemData>("MirageBlade").SpawnAsync(ShootDagger,
-                    Player.local.head.cam.transform.position + ((right ? Player.local.head.cam.transform.right : -Player.local.head.cam.transform.right) * 0.4f) +
-                    (up ? Player.local.head.cam.transform.up * 0.25f : Vector3.zero),
+                Catalog.GetData<ItemData>("MirageBlade").SpawnAsync(ShootBlades,
+                    Player.local.head.cam.transform.position + ((right ? Player.local.head.cam.transform.right : -Player.local.head.cam.transform.right) * 0.25f) +
+                    ((up ? Player.local.head.cam.transform.up : -Player.local.head.cam.transform.up) * 0.1f),
                     Player.local.head.cam.transform.rotation);
-                yield return new WaitForSeconds(MultiDaggerInterval);
+                yield return new WaitForSeconds(YamatoManager.BlisteringBladesInterval);
             }
             yield break;
         }
-        public void ShootDagger(Item spawnedItem)
+        public IEnumerator HeavyRainBlades()
+        {
+            Transform enemy = GetEnemy()?.ragdoll?.targetPart?.transform;
+            if (enemy != null)
+            {
+                GameObject effect = new GameObject();
+                effect.transform.position = enemy.position + (Vector3.up * 5);
+                effect.transform.rotation = Quaternion.identity;
+                EffectInstance instance = Catalog.GetData<EffectData>("MirageBladeSpawn").Spawn(effect.transform, false);
+                instance.SetIntensity(1);
+                instance.Play();
+                Destroy(effect, 2);
+                Catalog.GetData<ItemData>("HeavyRainBlades").SpawnAsync(ShootHeavyRainBlades, enemy.position + (Vector3.up * 5), Quaternion.LookRotation(Vector3.down));
+                yield return new WaitForSeconds(YamatoManager.HeavyRainBladesInterval);
+                for (int i = 0; i < YamatoManager.HeavyRainBladesCount - 1; i++)
+                {
+                    float randomX = enemy.position.x + UnityEngine.Random.Range(-2.5f, 2.5f);
+                    float randomZ = enemy.position.z + UnityEngine.Random.Range(-2.5f, 2.5f);
+                    Catalog.GetData<ItemData>("HeavyRainBlades").SpawnAsync(ShootHeavyRainBlades, new Vector3(randomX, enemy.position.y + 5, randomZ), Quaternion.LookRotation(Vector3.down));
+                    yield return new WaitForSeconds(YamatoManager.HeavyRainBladesInterval);
+                }
+            }
+            yield break;
+        }
+        public IEnumerator StormBlades()
         {
             Transform creature = GetEnemy()?.ragdoll?.targetPart?.transform;
-            spawnedItem.rb.useGravity = false;
-            spawnedItem.rb.drag = 0;
+            if(creature != null)
+            {
+                GameObject effect = new GameObject();
+                effect.transform.position = creature.position;
+                effect.transform.rotation = Quaternion.identity;
+                EffectInstance instance = Catalog.GetData<EffectData>("MirageBladeSpawn").Spawn(effect.transform, false);
+                instance.SetIntensity(1);
+                instance.Play();
+                Destroy(effect, 2);
+                float rotation = 0;
+                for (int i = 0; i < YamatoManager.StormBladesCount; i++)
+                {
+                    Catalog.GetData<ItemData>("MirageBlade").SpawnAsync(spawnedItem =>
+                    {
+                        spawnedItem.transform.Rotate(new Vector3(0, 0, rotation));
+                        rotation += 360/ YamatoManager.StormBladesCount;
+                        spawnedItem.transform.position = creature.position + (spawnedItem.transform.up * 2f);
+                        ShootStormBlades(spawnedItem, creature);
+                    }, creature.position, Quaternion.LookRotation(Vector3.up));
+                }
+            }
+            yield break;
+        }
+        public IEnumerator SpiralBlades()
+        {
+            Transform creature = item.mainHandler?.ragdoll?.targetPart?.transform;
+            if(creature != null)
+            {
+                GameObject effect = new GameObject();
+                effect.transform.position = creature.position;
+                effect.transform.rotation = Quaternion.identity;
+                EffectInstance instance = Catalog.GetData<EffectData>("MirageBladeSpawn").Spawn(effect.transform, false);
+                instance.SetIntensity(1);
+                instance.Play();
+                Destroy(effect, 2);
+                float rotation = 0;
+                for (int i = 0; i < YamatoManager.StormBladesCount; i++)
+                {
+                    Catalog.GetData<ItemData>("MirageBlade").SpawnAsync(spawnedItem =>
+                    {
+                        spawnedItem.transform.Rotate(new Vector3(0, 0, rotation));
+                        rotation += 360 / YamatoManager.SpiralBladesCount;
+                        spawnedItem.transform.position = creature.position + (spawnedItem.transform.up * 2f);
+                        ShootSpiralBlades(spawnedItem, creature);
+                    }, creature.position, Quaternion.LookRotation(Vector3.up));
+                }
+            }
+            yield break;
+        }
+        public void ShootSpiralBlades(Item spawnedItem, Transform player)
+        {
+            spawnedItem.transform.rotation = Quaternion.LookRotation(-(player.position - spawnedItem.transform.position).normalized, Vector3.up);
+            spawnedItem.physicBody.useGravity = false;
+            spawnedItem.physicBody.drag = 0;
+            spawnedItem.physicBody.AddForce(-(player.position - spawnedItem.transform.position).normalized * YamatoManager.DaggerForce, ForceMode.Impulse);
+            spawnedItem.RefreshCollision(true);
+            spawnedItem.IgnoreRagdollCollision(Player.currentCreature.ragdoll);
+            spawnedItem.IgnoreObjectCollision(item);
+            spawnedItem.gameObject.AddComponent<DaggerDespawn>();
+            spawnedItem.Throw();
+            foreach (Damager damager in spawnedItem.GetComponentsInChildren<Damager>())
+            {
+                if (!YamatoManager.DaggerDismemberment)
+                    damager.data.dismembermentAllowed = YamatoManager.DaggerDismemberment;
+            }
+        }
+        public void ShootStormBlades(Item spawnedItem, Transform enemy)
+        {
+            spawnedItem.transform.LookAt(enemy);
+            spawnedItem.physicBody.useGravity = false;
+            spawnedItem.physicBody.drag = 0;
+            spawnedItem.physicBody.AddForce((enemy.position - spawnedItem.transform.position).normalized * YamatoManager.DaggerForce, ForceMode.Impulse);
+            spawnedItem.RefreshCollision(true);
+            spawnedItem.IgnoreRagdollCollision(Player.currentCreature.ragdoll);
+            spawnedItem.IgnoreObjectCollision(item);
+            spawnedItem.gameObject.AddComponent<DaggerDespawn>();
+            spawnedItem.Throw();
+            foreach (Damager damager in spawnedItem.GetComponentsInChildren<Damager>())
+            {
+                if (!YamatoManager.DaggerDismemberment)
+                    damager.data.dismembermentAllowed = YamatoManager.DaggerDismemberment;
+            }
+        }
+        public void ShootHeavyRainBlades(Item spawnedItem)
+        {
+            spawnedItem.physicBody.drag = 0;
+            spawnedItem.physicBody.AddForce(Vector3.down * YamatoManager.DaggerForce, ForceMode.Impulse);
+            spawnedItem.RefreshCollision(true);
+            spawnedItem.IgnoreRagdollCollision(Player.currentCreature.ragdoll);
+            spawnedItem.IgnoreObjectCollision(item);
+            spawnedItem.gameObject.AddComponent<HeavyRainBlades>();
+            spawnedItem.Throw();
+            foreach (Damager damager in spawnedItem.GetComponentsInChildren<Damager>())
+            {
+                if (!YamatoManager.DaggerDismemberment)
+                    damager.data.dismembermentAllowed = YamatoManager.DaggerDismemberment;
+            }
+        }
+        public void ShootBlades(Item spawnedItem)
+        {
+            Transform creature = GetEnemy()?.ragdoll?.targetPart?.transform;
+            spawnedItem.physicBody.useGravity = false;
+            spawnedItem.physicBody.drag = 0;
             if (creature != null)
-                spawnedItem.rb.AddForce((creature.position - spawnedItem.transform.position).normalized * 45f, ForceMode.Impulse);
-            else spawnedItem.rb.AddForce(Player.local.head.transform.forward * 45f, ForceMode.Impulse);
+                spawnedItem.physicBody.AddForce((creature.position - spawnedItem.transform.position).normalized * YamatoManager.DaggerForce, ForceMode.Impulse);
+            else spawnedItem.physicBody.AddForce(Player.local.head.transform.forward * YamatoManager.DaggerForce, ForceMode.Impulse);
             spawnedItem.RefreshCollision(true);
             spawnedItem.IgnoreRagdollCollision(Player.currentCreature.ragdoll);
             spawnedItem.IgnoreObjectCollision(item);
@@ -195,8 +365,8 @@ namespace Yamato
             spawnedItem.Throw();
             foreach(Damager damager in spawnedItem.GetComponentsInChildren<Damager>())
             {
-                if (!DaggerDismemberment)
-                    damager.data.dismembermentAllowed = DaggerDismemberment;
+                if (!YamatoManager.DaggerDismemberment)
+                    damager.data.dismembermentAllowed = YamatoManager.DaggerDismemberment;
             }
         }
         public Creature GetEnemy()
@@ -205,43 +375,18 @@ namespace Yamato
             if (Creature.allActive.Count <= 0) return null;
             foreach (Creature creature in Creature.allActive)
             {
-                if (creature != null && !creature.isPlayer && creature.ragdoll.isActiveAndEnabled && !creature.isKilled && Vector3.Dot(Player.local.head.cam.transform.forward.normalized, (creature.transform.position - Player.local.transform.position).normalized) >= 0.9f && closestCreature == null &&
-                    Vector3.Distance(Player.local.transform.position, creature.transform.position) <= 25)
+                if (creature != null && !creature.isPlayer && creature.ragdoll.isActiveAndEnabled && !creature.isKilled && Vector3.Angle(Player.local.head.cam.transform.forward.normalized, (creature.ragdoll.targetPart.transform.position - Player.local.head.cam.transform.position).normalized) <= 20 && closestCreature == null &&
+                    Vector3.Distance(Player.local.transform.position, creature.ragdoll.targetPart.transform.position) <= 25)
                 {
                     closestCreature = creature;
                 }
-                else if (creature != null && !creature.isPlayer && creature.ragdoll.isActiveAndEnabled && !creature.isKilled && Vector3.Dot(Player.local.head.cam.transform.forward.normalized, (creature.transform.position - Player.local.transform.position).normalized) >= 0.9f && closestCreature != null &&
-                    Vector3.Distance(Player.local.transform.position, creature.transform.position) <= 25)
+                else if (creature != null && !creature.isPlayer && creature.ragdoll.isActiveAndEnabled && !creature.isKilled && Vector3.Angle(Player.local.head.cam.transform.forward.normalized, (creature.ragdoll.targetPart.transform.position - Player.local.head.cam.transform.position).normalized) <= 20 && closestCreature != null &&
+                    Vector3.Distance(Player.local.transform.position, creature.ragdoll.targetPart.transform.position) <= 25)
                 {
-                    if (Vector3.Distance(Player.local.transform.position, creature.transform.position) < Vector3.Distance(Player.local.transform.position, closestCreature.transform.position)) closestCreature = creature;
+                    if (Vector3.Distance(Player.local.head.cam.transform.position, creature.ragdoll.targetPart.transform.position) < Vector3.Distance(Player.local.head.cam.transform.position, closestCreature.ragdoll.targetPart.transform.position)) closestCreature = creature;
                 }
             }
             return closestCreature;
-        }
-        public void Setup(float speed, string direction, bool gravity, bool collision, float time, bool stop, bool start, bool thumbstick, bool swap, int count, float interval, bool realtime, ForceMode dashForceMode, bool dismember)
-        {
-            DashSpeed = speed;
-            DashDirection = direction;
-            DisableGravity = gravity;
-            DisableCollision = collision;
-            DashTime = time;
-            if (direction.ToLower().Contains("player") || direction.ToLower().Contains("head") || direction.ToLower().Contains("sight"))
-            {
-                DashDirection = "Player";
-            }
-            else if (direction.ToLower().Contains("item") || direction.ToLower().Contains("sheath") || direction.ToLower().Contains("flyref") || direction.ToLower().Contains("weapon"))
-            {
-                DashDirection = "Item";
-            }
-            StopOnEnd = stop;
-            StopOnStart = start;
-            ThumbstickDash = thumbstick;
-            SwapButtons = swap;
-            MultiDaggerCount = count;
-            MultiDaggerInterval = interval;
-            DashRealTime = realtime;
-            DashForceMode = dashForceMode;
-            DaggerDismemberment = dismember;
         }
     }
 }

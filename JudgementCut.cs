@@ -1,9 +1,5 @@
-﻿using System;
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using ThunderRoad;
 using UnityEngine;
 
@@ -64,6 +60,16 @@ namespace Yamato
             yield return null;
             foreach (Collider collider in Physics.OverlapSphere(item.transform.position, 1.5f))
             {
+                if (collider.GetComponentInParent<Breakable>() is Breakable breakable)
+                {
+                    float sqrMagnitude = item.physicBody.velocity.sqrMagnitude;
+                    --breakable.hitsUntilBreak;
+                    if (breakable.canInstantaneouslyBreak)
+                        breakable.hitsUntilBreak = 0;
+                    breakable.onTakeDamage?.Invoke(sqrMagnitude);
+                    if (!breakable.IsBroken && breakable.hitsUntilBreak <= 0)
+                        breakable.Break();
+                }
                 if (collider.GetComponentInParent<RagdollPart>() is RagdollPart part && part.ragdoll.creature != Player.local.creature && part?.ragdoll?.creature?.gameObject?.activeSelf == true && !part.isSliced)
                 {
                     part.gameObject.SetActive(true);
@@ -74,9 +80,9 @@ namespace Yamato
                         sourceCollider = yamato.colliderGroups[0].colliders[0],
                         sourceColliderGroup = yamato.colliderGroups[0],
                         casterHand = yamato.lastHandler.caster,
-                        impactVelocity = yamato.rb.velocity,
+                        impactVelocity = yamato.physicBody.velocity,
                         contactPoint = part.transform.position,
-                        contactNormal = -yamato.rb.velocity
+                        contactNormal = -yamato.physicBody.velocity
                     };
                     instance.damageStruct.hitRagdollPart = part;
                     if (imbue.energy > 0)
@@ -107,7 +113,7 @@ namespace Yamato
                                 component.ragdoll.creature.locomotion.rb.velocity = Vector3.zero;
                                 foreach(RagdollPart ragdollPart in component.ragdoll.parts)
                                 {
-                                    ragdollPart.rb.velocity = Vector3.zero;
+                                    ragdollPart.physicBody.velocity = Vector3.zero;
                                 }
                                 component.ragdoll.creature.locomotion.rb.AddForce(Vector3.up * 2, ForceMode.Impulse);
                             }
