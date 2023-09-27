@@ -19,7 +19,7 @@ namespace Yamato
         public void Start()
         {
             item = GetComponent<Item>();
-            EffectInstance instance = Catalog.GetData<EffectData>("MirageFire").Spawn(item.transform, false);
+            EffectInstance instance = Catalog.GetData<EffectData>("MirageFire").Spawn(item.transform, null, false);
             instance.SetRenderer(item.colliderGroups[0].imbueEffectRenderer, false);
             instance.SetIntensity(1);
             instance.Play();
@@ -57,7 +57,7 @@ namespace Yamato
             }
             GameObject glass = new GameObject();
             glass.transform.position = item.transform.position;
-            EffectInstance shatter = Catalog.GetData<EffectData>("GlassShatter").Spawn(glass.transform, false);
+            EffectInstance shatter = Catalog.GetData<EffectData>("GlassShatter").Spawn(glass.transform, null, false);
             shatter.SetIntensity(1);
             shatter.Play();
             Destroy(glass, 5);
@@ -99,7 +99,7 @@ namespace Yamato
             if (enemy?.animator?.speed == 0.1f) enemy.animator.speed = 1;
             GameObject glass = new GameObject();
             glass.transform.position = item.transform.position;
-            EffectInstance shatter = Catalog.GetData<EffectData>("GlassShatter").Spawn(glass.transform, false);
+            EffectInstance shatter = Catalog.GetData<EffectData>("GlassShatter").Spawn(glass.transform, null, false);
             shatter.SetIntensity(1);
             shatter.Play();
             Destroy(glass, 5);

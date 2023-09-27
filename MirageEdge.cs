@@ -30,7 +30,7 @@ namespace Yamato
             item.OnGrabEvent += Item_OnGrabEvent;
             item.OnUngrabEvent += Item_OnUngrabEvent;
             item.OnTelekinesisReleaseEvent += Item_OnTelekinesisReleaseEvent;
-            EffectInstance instance = Catalog.GetData<EffectData>("MirageFire").Spawn(item.transform, false);
+            EffectInstance instance = Catalog.GetData<EffectData>("MirageFire").Spawn(item.transform, null, false);
             instance.SetRenderer(item.colliderGroups[0].imbueEffectRenderer, false);
             instance.SetIntensity(1);
             instance.Play();

@@ -47,7 +47,7 @@ namespace Yamato
             GameObject effect = new GameObject();
             effect.transform.position = item.transform.position;
             effect.transform.rotation = Quaternion.identity;
-            EffectInstance instance = Catalog.GetData<EffectData>("JudgementCutHit").Spawn(effect.transform, false);
+            EffectInstance instance = Catalog.GetData<EffectData>("JudgementCutHit").Spawn(effect.transform, null, false);
             instance.SetIntensity(2);
             instance.Play();
             Destroy(effect, 2);

@@ -139,7 +139,7 @@ namespace Yamato
                 effect.transform.position = Player.local.head.cam.transform.position + ((right ? Player.local.head.cam.transform.right : -Player.local.head.cam.transform.right) * 0.25f) +
                     ((up ? Player.local.head.cam.transform.up : -Player.local.head.cam.transform.up) * 0.1f);
                 effect.transform.rotation = Quaternion.identity;
-                EffectInstance instance = Catalog.GetData<EffectData>("MirageBladeSpawn").Spawn(effect.transform, false);
+                EffectInstance instance = Catalog.GetData<EffectData>("MirageBladeSpawn").Spawn(effect.transform, null, false);
                 instance.SetIntensity(1);
                 instance.Play();
                 Destroy(effect, 2);
@@ -209,7 +209,7 @@ namespace Yamato
             GameObject effect = new GameObject();
             effect.transform.position = Player.local.head.cam.transform.position;
             effect.transform.rotation = Quaternion.identity;
-            EffectInstance instance = Catalog.GetData<EffectData>("MirageBladeSpawn").Spawn(effect.transform, false);
+            EffectInstance instance = Catalog.GetData<EffectData>("MirageBladeSpawn").Spawn(effect.transform, null, false);
             instance.SetIntensity(1);
             instance.Play();
             Destroy(effect, 2);
@@ -233,7 +233,7 @@ namespace Yamato
                 GameObject effect = new GameObject();
                 effect.transform.position = enemy.position + (Vector3.up * 5);
                 effect.transform.rotation = Quaternion.identity;
-                EffectInstance instance = Catalog.GetData<EffectData>("MirageBladeSpawn").Spawn(effect.transform, false);
+                EffectInstance instance = Catalog.GetData<EffectData>("MirageBladeSpawn").Spawn(effect.transform, null, false);
                 instance.SetIntensity(1);
                 instance.Play();
                 Destroy(effect, 2);
@@ -257,7 +257,7 @@ namespace Yamato
                 GameObject effect = new GameObject();
                 effect.transform.position = creature.position;
                 effect.transform.rotation = Quaternion.identity;
-                EffectInstance instance = Catalog.GetData<EffectData>("MirageBladeSpawn").Spawn(effect.transform, false);
+                EffectInstance instance = Catalog.GetData<EffectData>("MirageBladeSpawn").Spawn(effect.transform, null, false);
                 instance.SetIntensity(1);
                 instance.Play();
                 Destroy(effect, 2);
@@ -283,7 +283,7 @@ namespace Yamato
                 GameObject effect = new GameObject();
                 effect.transform.position = creature.position;
                 effect.transform.rotation = Quaternion.identity;
-                EffectInstance instance = Catalog.GetData<EffectData>("MirageBladeSpawn").Spawn(effect.transform, false);
+                EffectInstance instance = Catalog.GetData<EffectData>("MirageBladeSpawn").Spawn(effect.transform, null, false);
                 instance.SetIntensity(1);
                 instance.Play();
                 Destroy(effect, 2);

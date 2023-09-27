@@ -120,7 +120,7 @@ namespace Yamato
                     Player.local.locomotion.rb.velocity = Vector3.zero;
                     Player.local.locomotion.rb.AddForce(Vector3.up * 200, ForceMode.Impulse);
                 }
-                EffectInstance instance = Catalog.GetData<EffectData>("JudgementCutStart").Spawn(item.transform, false);
+                EffectInstance instance = Catalog.GetData<EffectData>("JudgementCutStart").Spawn(item.transform, null, false);
                 instance.SetIntensity(1);
                 instance.Play();
             }
@@ -130,7 +130,7 @@ namespace Yamato
         }
         public IEnumerator JCE()
         {
-            EffectInstance instance = Catalog.GetData<EffectData>("JudgementCutEnd").Spawn(Player.local.transform, false);
+            EffectInstance instance = Catalog.GetData<EffectData>("JudgementCutEnd").Spawn(Player.local.transform, null, false);
             instance.SetIntensity(1);
             instance.Play();
             CameraEffects.SetSepia(0.5f);
@@ -351,7 +351,7 @@ namespace Yamato
                         }
                     }
                 }
-                EffectInstance shatter = Catalog.GetData<EffectData>("GlassShatter").Spawn(Player.local.creature.transform, false);
+                EffectInstance shatter = Catalog.GetData<EffectData>("GlassShatter").Spawn(Player.local.creature.transform, null, false);
                 shatter.SetIntensity(1);
                 shatter.Play();
                 CameraEffects.SetSepia(0);
@@ -429,7 +429,7 @@ namespace Yamato
                 Player.local.locomotion.rb.velocity = Vector3.zero;
                 Player.local.locomotion.rb.AddForce(Vector3.up * 200, ForceMode.Impulse);
             }
-            EffectInstance instance = Catalog.GetData<EffectData>("JudgementCutStart").Spawn(item.transform, false);
+            EffectInstance instance = Catalog.GetData<EffectData>("JudgementCutStart").Spawn(item.transform, null, false);
             instance.SetIntensity(1);
             instance.Play();
             yield break;
